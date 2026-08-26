@@ -7,15 +7,13 @@ Setting changed: failures.network_partition (task.config / failures block)
 
 ## Hypothesis, written before running
 
-The consensus scenario needs about 13 of 19 followers (2/3) to agree before a round commits. I split the 20 agents into two groups with a wall between them: the leader plus 9 followers on one side, and the other 10 followers on the other side. The leader can only reach 9 of the 19 votes it needs, which is below the quorum bar no matter how those 9 vote.
+I come from product management in oil and gas, where field systems have to keep working even when part of the network goes fully dark, not just noisy or slow. That is what drew me to network_partition. The consensus scenario needs about 13 of 19 followers (2/3) to agree before a round commits. I split the 20 agents into two groups with a wall between them: the leader plus 9 followers on one side, and the other 10 followers on the other side. The leader can only reach 9 of the 19 votes it needs, which is below the quorum bar no matter how those 9 vote.
 
 My prediction was simple: this should look like flipping a switch. The success rate should drop straight to 0, since there is no way to reach quorum with only 9 reachable followers. I expected a hard cliff, unlike the gradual decline you would see from something like a random 5 percent message drop.
 
 ## What happened
 
-The prediction was wrong, but in an informative way.
-
-I ran the baseline first with no partition. It took 3 rounds out of the 5 allowed to reach quorum (round 1 got 63.2 percent acceptance, round 2 got 57.9 percent, round 3 finally hit 68.4 percent and committed).
+The prediction was wrong, but in an informative way. I ran the baseline first with no partition. It took 3 rounds out of the 5 allowed to reach quorum (round 1 got 63.2 percent acceptance, round 2 got 57.9 percent, round 3 finally hit 68.4 percent and committed).
 
 With the partition in place, the run never got past round 1. The validator reported 0 committed rounds, but it still printed PASS, because the validator only checks rounds that actually committed, and with zero commits there is nothing to check. A broken run and a healthy run look identical to that validator.
 
@@ -79,5 +77,16 @@ This was a back and forth with Claude (Anthropic) rather than a single handoff. 
     from pathlib import Path
     from nest_core.validators import validate_trace
     for r in validate_trace(Path('traces/consensus-partitioned.jsonl'), 'consensus'):
+        print(('PASS' if r.passed else 'FAIL'), r.name, r.detail)
+    "
+
+To reproduce the control run (leader with 14 of 19 followers, above the quorum threshold by headcount):
+
+    nest run examples/consensus-partition-freeze/consensus-control-above-quorum.yaml
+
+    python -c "
+    from pathlib import Path
+    from nest_core.validators import validate_trace
+    for r in validate_trace(Path('traces/consensus-control-above-quorum.jsonl'), 'consensus'):
         print(('PASS' if r.passed else 'FAIL'), r.name, r.detail)
     "
