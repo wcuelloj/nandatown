@@ -36,6 +36,11 @@ I then checked whether this same pattern shows up in the other scenarios by read
 
 So the bug is not a one-off mistake in one file. It is a repeated design choice, "wait for all N participants, no timeout," that shows up in every scenario built around a single coordinator collecting responses from a whole group, and is absent from every scenario built as pairs or a chain.
 
+## Robustness check across seeds
+
+To rule out this being an artifact of seed 42 specifically, I reran the partitioned experiment (leader with 9 of 19 followers reachable) at four additional seeds: 1, 7, 100, and 999. Every seed produced the same result: 0 committed rounds. The freeze is a property of the partition itself, not a coincidence tied to one particular seed.
+
+
 ## Why this matters here specifically
 
 Nanda Town's whole premise is that it tells you whether your protocol actually works. A validator that passes vacuously on zero events, and a metric named "success_rate" that is actually measuring message delivery, both make a frozen protocol look calm on the surface. Someone running this scenario under a partition and only glancing at the dashboard would see a percentage in the 60s to 80s range and a green validator, and could easily walk away thinking the system degraded gracefully, when in fact it never agreed on anything at all.
@@ -98,4 +103,22 @@ Control (leader partitioned with 14 of 19 followers, above quorum by headcount):
     from nest_core.validators import validate_trace
     for r in validate_trace(Path('traces/consensus-control-above-quorum.jsonl'), 'consensus'):
         print(('PASS' if r.passed else 'FAIL'), r.name, r.detail)
+    "
+
+Robustness check (same partitioned experiment, five seeds):
+
+    nest run examples/consensus-partition-freeze/consensus.yaml --seed 1 -o traces/seed1.jsonl
+    nest run examples/consensus-partition-freeze/consensus.yaml --seed 7 -o traces/seed7.jsonl
+    nest run examples/consensus-partition-freeze/consensus.yaml --seed 42 -o traces/seed42.jsonl
+    nest run examples/consensus-partition-freeze/consensus.yaml --seed 100 -o traces/seed100.jsonl
+    nest run examples/consensus-partition-freeze/consensus.yaml --seed 999 -o traces/seed999.jsonl
+
+    python -c "
+    from pathlib import Path
+    from nest_core.validators import validate_trace
+    for seed in [1, 7, 42, 100, 999]:
+        results = validate_trace(Path(f'traces/seed{seed}.jsonl'), 'consensus')
+        for r in results:
+            if r.name == 'consensus_agreement':
+                print(f'seed {seed}: {r.detail}')
     "
