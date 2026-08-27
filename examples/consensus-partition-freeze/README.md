@@ -63,16 +63,26 @@ The auction scenario has a version of this same root cause: PR #88 ("one byzanti
 
 ## Tools and help used
 
-This was a back and forth with Claude (Anthropic) rather than a single handoff. Claude helped me read the repository README and survey the other open PRs to see which scenarios and settings were already heavily covered, which is how we landed on network_partition on consensus instead of the much more common message_drop or byzantine_agents sweeps. Once the experiment was scoped, I ran every command myself, the baseline run, the partitioned run, the control run, the validator checks, and the report generation. After each run Claude and I both checked the output: Claude re-derived the reported numbers independently by hand from the raw trace events (recomputing delivery_rate and tallying accept and reject votes per round) so we were not just trusting the tool's own summary, and I reviewed the same traces myself and confirmed the same numbers. When the control run did not match my prediction, Claude helped me read the installed nest_core source to find the actual cause, the unanimous vote wait with no timeout at consensus.py line 56, and helped me check the other five scenarios for the same pattern. Claude also assisted with drafting and editing this README.
+Claude helped me survey open PRs to find interesting scenario/setting combinations, which led to network_partition on consensus and aligned with my oil and gas background where time is money and business must continue. I ran every command myself: baseline, partitioned, report generation, etc. Claude independently re-derived the reported numbers from the raw trace events, and I reviewed the same traces and confirmed the same numbers. When the control run did not match my prediction, Claude helped me read the nest_core source to find the actual cause, and helped check the other five scenarios for the same pattern. Claude also assisted with editing this writeup.
 
 ## How to reproduce
+
+Baseline (no partition):
+
+    nest run consensus
+    python -c "
+    from pathlib import Path
+    from nest_core.validators import validate_trace
+    for r in validate_trace(Path('traces/consensus.jsonl'), 'consensus'):
+        print(('PASS' if r.passed else 'FAIL'), r.name, r.detail)
+    "
+
+Main experiment (leader partitioned with 9 of 19 followers, below quorum):
 
     nest scenarios cp consensus .
     # edit consensus.yaml: add a failures.network_partition block
     # group A: leader-0 plus 9 followers, group B: the remaining 10 followers
     nest run consensus.yaml -o traces/consensus-partitioned.jsonl
-    nest run consensus.yaml   # baseline, no partition, for comparison
-
     python -c "
     from pathlib import Path
     from nest_core.validators import validate_trace
@@ -80,10 +90,9 @@ This was a back and forth with Claude (Anthropic) rather than a single handoff. 
         print(('PASS' if r.passed else 'FAIL'), r.name, r.detail)
     "
 
-To reproduce the control run (leader with 14 of 19 followers, above the quorum threshold by headcount):
+Control (leader partitioned with 14 of 19 followers, above quorum by headcount):
 
     nest run examples/consensus-partition-freeze/consensus-control-above-quorum.yaml
-
     python -c "
     from pathlib import Path
     from nest_core.validators import validate_trace
